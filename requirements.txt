@@ -1,0 +1,8 @@
+streamlit
+transformers
+torch
+sentencepiece
+underthesea
+datasets
+scikit-learn
+accelerate
