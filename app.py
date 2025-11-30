@@ -1,22 +1,39 @@
 import streamlit as st
-from transformers import pipeline, AutoTokenizer, AutoModelForSequenceClassification, TrainingArguments, Trainer
 import sqlite3
 from datetime import datetime
 import os
-import torch
-from datasets import Dataset
-import numpy as np
+
+# Thiết lập cache directory cho Hugging Face models
+CACHE_DIR = os.path.join(os.path.dirname(__file__), '.model_cache')
+os.makedirs(CACHE_DIR, exist_ok=True)
+os.environ['TRANSFORMERS_CACHE'] = CACHE_DIR
+os.environ['HF_HOME'] = CACHE_DIR
+
+# Delay importing heavy ML libs until needed to avoid import-time errors in Streamlit
+_TRANSFORMERS_IMPORTED = False
+
+def _import_transformers_for_inference():
+    global _TRANSFORMERS_IMPORTED
+    if not _TRANSFORMERS_IMPORTED:
+        # import locally to avoid ImportError during Streamlit import phase
+        from transformers import pipeline
+        _TRANSFORMERS_IMPORTED = True
+        return pipeline
+    else:
+        from transformers import pipeline
+        return pipeline
 
 DB_PATH = 'sentiments.db'
 
 @st.cache_resource
 def get_classifier(use_custom=False):  # Tạm thời tắt custom model
+    pipeline_fn = _import_transformers_for_inference()
     custom_model_path = './fine_tuned_model'
     
     # Nếu có model đã fine-tune, sử dụng nó
     if use_custom and os.path.exists(custom_model_path):
         try:
-            return pipeline('sentiment-analysis', model=custom_model_path)
+            return pipeline_fn('sentiment-analysis', model=custom_model_path, local_files_only=True)
         except Exception as e:
             st.warning(f'Không thể load model đã fine-tune: {e}')
     
@@ -29,13 +46,23 @@ def get_classifier(use_custom=False):  # Tạm thời tắt custom model
     
     for m in preferred_models:
         try:
-            return pipeline('sentiment-analysis', model=m)
+            # Thử load từ cache trước (local_files_only=True)
+            try:
+                classifier = pipeline_fn('sentiment-analysis', model=m, local_files_only=True)
+                st.success(f'✅ Đã load model từ cache: {m}')
+                return classifier
+            except Exception:
+                # Nếu chưa có trong cache, download về
+                st.info(f'⏬ Đang tải model lần đầu: {m} (sẽ cache cho lần sau)...')
+                classifier = pipeline_fn('sentiment-analysis', model=m)
+                st.success(f'✅ Đã tải và cache model: {m}')
+                return classifier
         except Exception as e:
-            st.warning(f'Không load được {m}, thử model khác...')
+            st.warning(f'Không load được {m}: {e}, thử model khác...')
             continue
     
     # fallback to pipeline default model
-    return pipeline('sentiment-analysis')
+    return pipeline_fn('sentiment-analysis')
 
 @st.cache_resource
 def get_conn():

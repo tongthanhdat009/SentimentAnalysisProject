@@ -209,3 +209,4 @@ __marimo__/
 /fine_tuned_model/checkpoint-6
 /fine_tuned_model/checkpoint-9
 /fine_tuned_model
+/.model_cache
