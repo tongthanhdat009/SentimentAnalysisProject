@@ -95,7 +95,7 @@ Danh sách 10 câu mẫu và kết quả mong đợi (theo đề án):
 1. "Hôm nay tôi rất vui" → POSITIVE
 2. "Món ăn này dở quá" → NEGATIVE
 3. "Thời tiết bình thường" → NEUTRAL
-4. "Rất vui hôm nay" → POSITIVE
+4. "Rat vui hom nay" → POSITIVE
 5. "Công việc ổn định" → NEUTRAL
 6. "Phim này hay lắm" → POSITIVE
 7. "Tôi buồn vì thất bại" → NEGATIVE
