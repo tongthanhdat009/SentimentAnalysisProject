@@ -223,50 +223,186 @@ def predict_label(classifier, text):
     return 'TRUNG LẬP', 0.0, 'NEUTRAL', 'NEUTRAL'
 
 def main():
-    st.title('Trợ lý phân loại cảm xúc tiếng Việt (Transformer)')
-    st.write('Nhập câu tiếng Việt và nhấn `Phân loại cảm xúc`.')
+    # Page config để tận dụng toàn bộ width
+    st.set_page_config(page_title="Sentiment Analysis", layout="wide")
+    
+    # Custom CSS với màu sắc nhẹ nhàng hơn
+    st.markdown("""
+    <style>
+    /* Tận dụng toàn bộ width */
+    .main > div {
+        padding-left: 2rem;
+        padding-right: 2rem;
+        max-width: 100%;
+    }
+    
+    /* Header đơn giản, màu nhẹ */
+    .main-header {
+        text-align: center;
+        padding: 1.5rem;
+        background: linear-gradient(135deg, #4a5568 0%, #2d3748 100%);
+        border-radius: 8px;
+        margin-bottom: 1.5rem;
+    }
+    .main-header h1 {
+        color: white;
+        margin: 0;
+        font-size: 2rem;
+    }
+    .main-header p {
+        color: #e2e8f0;
+        margin: 0.3rem 0 0 0;
+        font-size: 0.9rem;
+    }
+    
+    /* Button với màu nhẹ nhàng */
+    .stButton>button {
+        width: 100%;
+        background: #4299e1;
+        color: white;
+        border: none;
+        padding: 0.6rem;
+        font-size: 1rem;
+        font-weight: 500;
+        border-radius: 6px;
+        transition: all 0.2s;
+    }
+    .stButton>button:hover {
+        background: #3182ce;
+    }
+    
+    /* Giảm padding của columns */
+    [data-testid="column"] {
+        padding: 0 0.5rem;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+    
+    # Header đơn giản
+    st.markdown("""
+    <div class="main-header">
+        <h1>🎯 Phân loại cảm xúc tiếng Việt</h1>
+    </div>
+    """, unsafe_allow_html=True)
 
     conn = get_conn()
 
-    with st.form('input_form'):
-        text = st.text_input('Câu tiếng Việt', '')
-        submitted = st.form_submit_button('Phân loại cảm xúc')
+    # Chia layout 60-40 thay vì 3-2
+    col_left, col_right = st.columns([6, 4], gap="medium")
+    
+    # === CỘT TRÁI ===
+    with col_left:
+        st.markdown("#### 💬 Nhập văn bản")
+        
+        with st.form('input_form', clear_on_submit=False):
+            text = st.text_area(
+                'Câu tiếng Việt',
+                placeholder='Nhập câu có ít nhất 5 ký tự...',
+                height=120,
+                label_visibility="collapsed"
+            )
+            submitted = st.form_submit_button('🚀 Phân loại', use_container_width=True)
 
-    if submitted:
-        if not text or len(text.strip()) < 5:
-            st.error('⚠️ Câu không hợp lệ, thử lại!')
-            st.warning('Vui lòng nhập câu có ít nhất 5 ký tự.')
+        if submitted:
+            if not text or len(text.strip()) < 5:
+                st.error('⚠️ Vui lòng nhập câu có ít nhất 5 ký tự.')
+            else:
+                processed_text = add_vietnamese_accents(text)
+                
+                with st.spinner('Đang phân tích...'):
+                    classifier = get_classifier()
+                    label, score, original_label, english_label = predict_label(classifier, processed_text)
+                    save_record(conn, processed_text, label)
+                
+                st.markdown("---")
+                
+                # Kết quả với màu nhẹ nhàng
+                col_r1, col_r2, col_r3 = st.columns([3, 2, 2])
+                
+                with col_r1:
+                    st.markdown(f"**Cảm xúc:** {label}")
+                
+                with col_r2:
+                    if 'TÍCH CỰC' in label:
+                        st.markdown("😊 Tích cực")
+                    elif 'TIÊU CỰC' in label:
+                        st.markdown("😞 Tiêu cực")
+                    else:
+                        st.markdown("😐 Trung lập")
+                
+                with col_r3:
+                    st.markdown(f"**{score:.1%}** tin cậy")
+                
+                # Progress bar
+                st.progress(score)
+                
+                # Văn bản đã xử lý (nếu có)
+                if processed_text != text:
+                    with st.expander("✨ Văn bản chuẩn hóa"):
+                        col1, col2 = st.columns(2)
+                        with col1:
+                            st.caption("Trước:")
+                            st.text(text)
+                        with col2:
+                            st.caption("Sau:")
+                            st.text(processed_text)
+                
+                # JSON
+                import json
+                json_output = {
+                    "text": processed_text,
+                    "sentiment": english_label,
+                    "confidence": round(score, 4)
+                }
+                with st.expander("📋 JSON"):
+                    st.code(json.dumps(json_output, ensure_ascii=False, indent=2), language='json')
+    
+    # === CỘT PHẢI ===
+    with col_right:
+        st.markdown("#### 📜 Lịch sử")
+        
+        rows = fetch_history(conn, limit=25)
+        
+        if rows:
+            st.caption(f"Hiển thị {len(rows)} gần nhất")
+            
+            for idx, (t, s, ts) in enumerate(rows, 1):
+                # Màu pastel nhẹ nhàng
+                if 'TÍCH CỰC' in s:
+                    bg_color = "#e6f4ea"
+                    border_color = "#5bb974"
+                    icon = "✓"
+                elif 'TIÊU CỰC' in s:
+                    bg_color = "#fce8e6"
+                    border_color = "#e67c73"
+                    icon = "✗"
+                else:
+                    bg_color = "#e8f0fe"
+                    border_color = "#669df6"
+                    icon = "−"
+                
+                st.markdown(f"""
+                <div style="
+                    background: {bg_color};
+                    border-left: 3px solid {border_color};
+                    border-radius: 4px;
+                    padding: 10px;
+                    margin: 6px 0;
+                    font-size: 0.85rem;
+                ">
+                    <div style="color: #666; margin-bottom: 4px;">
+                        {icon} <b>#{idx}</b> • {ts[5:16]}
+                    </div>
+                    <div style="color: #333; margin-bottom: 4px;">
+                        {t[:70]}{'...' if len(t) > 70 else ''}
+                    </div>
+                    <div style="color: {border_color}; font-weight: 500;">
+                        {s}
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
         else:
-            # Thêm dấu tự động nếu thiếu dấu
-            processed_text = add_vietnamese_accents(text)
-            
-            with st.spinner('Tải model và phân loại (lần đầu có thể chậm)...'):
-                classifier = get_classifier()
-                label, score, original_label, english_label = predict_label(classifier, processed_text)
-                save_record(conn, processed_text, label)
-            
-            # Hiển thị kết quả
-            st.success(f'Kết quả: {label} (score={score:.2f})')
-            if processed_text != text:
-                st.info(f'✨ Đã thêm dấu tự động: "{text}" → "{processed_text}"')
-            st.caption(f'Label gốc từ model: {original_label}')
-            
-            # Hiển thị JSON output
-            import json
-            json_output = {
-                "text": processed_text,
-                "sentiment": english_label,  # Tiếng Anh cho JSON
-            }
-            with st.expander("📋 Xem kết quả dạng JSON"):
-                st.code(json.dumps(json_output, ensure_ascii=False, indent=2), language='json')
-
-    st.subheader('Lịch sử phân loại (gần nhất)')
-    rows = fetch_history(conn, limit=50)
-    if rows:
-        for t, s, ts in rows:
-            st.write(f'[{ts}] {t} → **{s}**')
-    else:
-        st.info('Chưa có bản ghi nào.')
+            st.info('Chưa có lịch sử')
 
 if __name__ == '__main__':
     main()
