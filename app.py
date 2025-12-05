@@ -23,6 +23,98 @@ def _import_transformers_for_inference():
         from transformers import pipeline
         return pipeline
 
+def add_vietnamese_accents(text):
+    """Thêm dấu tiếng Việt cho văn bản thiếu dấu và mở rộng từ viết tắt"""
+    # Dictionary mapping từ viết tắt -> từ đầy đủ
+    abbreviation_map = {
+        'k': 'không', 'K': 'Không', 
+        'ko': 'không', 'Ko': 'Không',
+        'kh': 'không', 'Kh': 'Không',
+        'dc': 'được', 'Dc': 'Được',
+        'đc': 'được', 'Đc': 'Được',
+        'cx': 'cũng', 'Cx': 'Cũng',
+        'j': 'gì', 'J': 'Gì',
+        'gi': 'gì', 'Gi': 'Gì',
+        'mk': 'mình', 'Mk': 'Mình',
+        'mik': 'mình', 'Mik': 'Mình',
+        'bn': 'bạn', 'Bn': 'Bạn',
+        'bik': 'biết', 'Bik': 'Biết',
+        'bt': 'biết', 'Bt': 'Biết',
+        'ntn': 'như thế nào', 'Ntn': 'Như thế nào',
+        'nt': 'nhắn tin', 'Nt': 'Nhắn tin',
+        'vs': 'với', 'Vs': 'Với',
+        'v': 'vậy', 'V': 'Vậy',
+        'r': 'rồi', 'R': 'Rồi',
+        'ny': 'này', 'Ny': 'Này',
+        'oy': 'này', 'Oy': 'Này',
+        'nko': 'nhỉ', 'Nko': 'Nhỉ',
+        'wa': 'quá', 'Wa': 'Quá',
+        'qá': 'quá', 'Qá': 'Quá',
+        'nka': 'nhà', 'Nka': 'Nhà',
+        'trc': 'trước', 'Trc': 'Trước',
+        'bh': 'bây giờ', 'Bh': 'Bây giờ',
+        'h': 'giờ', 'H': 'Giờ',
+        'lm': 'làm', 'Lm': 'Làm',
+        'ms': 'mới', 'Ms': 'Mới',
+    }
+    
+    # Dictionary mapping từ không dấu -> có dấu (10-20 từ phổ biến như yêu cầu)
+    accent_map = {
+        'rat': 'rất', 'Rat': 'Rất',
+        'vui': 'vui', 'Vui': 'Vui',
+        'hom': 'hôm', 'Hom': 'Hôm',
+        'nay': 'nay', 'Nay': 'Nay',
+        'toi': 'tôi', 'Toi': 'Tôi',
+        'buon': 'buồn', 'Buon': 'Buồn',
+        'do': 'dở', 'Do': 'Dở',
+        'qua': 'quá', 'Qua': 'Quá',
+        'met': 'mệt', 'Met': 'Mệt',
+        'moi': 'mỏi', 'Moi': 'Mỏi',
+        'cam': 'cảm', 'Cam': 'Cảm',
+        'on': 'ơn', 'On': 'Ơn',
+        'nhieu': 'nhiều', 'Nhieu': 'Nhiều',
+        'hay': 'hay', 'Hay': 'Hay',
+        'lam': 'lắm', 'Lam': 'Lắm',
+        'mon': 'món', 'Mon': 'Món',
+        'an': 'ăn', 'An': 'Ăn',
+        'thoi': 'thời', 'Thoi': 'Thời',
+        'tiet': 'tiết', 'Tiet': 'Tiết',
+        'binh': 'bình', 'Binh': 'Bình',
+        'thuong': 'thường', 'Thuong': 'Thường',
+        'cong': 'công', 'Cong': 'Công',
+        'viec': 'việc', 'Viec': 'Việc',
+        'dinh': 'định', 'Dinh': 'Định',
+        'phim': 'phim', 'Phim': 'Phim',
+        'vi': 'vì', 'Vi': 'Vì',
+        'that': 'thất', 'That': 'Thất',
+        'bai': 'bại', 'Bai': 'Bại',
+        'ngay': 'ngày', 'Ngay': 'Ngày',
+        'mai': 'mai', 'Mai': 'Mai',
+        'di': 'đi', 'Di': 'Đi',
+        'hoc': 'học', 'Hoc': 'Học',
+        'duoc': 'được', 'Duoc': 'Được',
+        'khong': 'không', 'Khong': 'Không',
+        'tot': 'tốt', 'Tot': 'Tốt',
+        'dep': 'đẹp', 'Dep': 'Đẹp',
+        'xau': 'xấu', 'Xau': 'Xấu',
+        'ban': 'bạn', 'Ban': 'Bạn',
+    }
+    
+    words = text.split()
+    result = []
+    
+    for word in words:
+        # Bước 1: Xử lý viết tắt trước
+        if word in abbreviation_map:
+            result.append(abbreviation_map[word])
+        # Bước 2: Thêm dấu cho từ không dấu
+        elif word in accent_map:
+            result.append(accent_map[word])
+        else:
+            result.append(word)
+    
+    return ' '.join(result)
+
 DB_PATH = 'sentiments.db'
 
 @st.cache_resource
@@ -113,11 +205,22 @@ def predict_label(classifier, text):
                 '5 stars': 'RẤT TÍCH CỰC',
             }
             
+            # Map tiếng Việt sang tiếng Anh cho JSON output
+            vietnamese_to_english = {
+                'TÍCH CỰC': 'POSITIVE',
+                'TIÊU CỰC': 'NEGATIVE',
+                'TRUNG LẬP': 'NEUTRAL',
+                'RẤT TÍCH CỰC': 'POSITIVE',
+                'RẤT TIÊU CỰC': 'NEGATIVE',
+            }
+            
             normalized_label = label_map.get(label, label)
-            return normalized_label, score, label  # Trả về cả label gốc
+            english_label = vietnamese_to_english.get(normalized_label, label)
+            
+            return normalized_label, score, label, english_label  # Trả về cả label tiếng Anh
     except Exception as e:
         st.error(f'Error calling model: {e}')
-    return 'TRUNG LẬP', 0.0, 'NEUTRAL'
+    return 'TRUNG LẬP', 0.0, 'NEUTRAL', 'NEUTRAL'
 
 def main():
     st.title('Trợ lý phân loại cảm xúc tiếng Việt (Transformer)')
@@ -130,15 +233,32 @@ def main():
         submitted = st.form_submit_button('Phân loại cảm xúc')
 
     if submitted:
-        if not text or len(text.strip()) < 2:
-            st.warning('Vui lòng nhập câu có độ dài hợp lệ (>=2 ký tự).')
+        if not text or len(text.strip()) < 5:
+            st.error('⚠️ Câu không hợp lệ, thử lại!')
+            st.warning('Vui lòng nhập câu có ít nhất 5 ký tự.')
         else:
+            # Thêm dấu tự động nếu thiếu dấu
+            processed_text = add_vietnamese_accents(text)
+            
             with st.spinner('Tải model và phân loại (lần đầu có thể chậm)...'):
                 classifier = get_classifier()
-                label, score, original_label = predict_label(classifier, text)
-                save_record(conn, text, label)
+                label, score, original_label, english_label = predict_label(classifier, processed_text)
+                save_record(conn, processed_text, label)
+            
+            # Hiển thị kết quả
             st.success(f'Kết quả: {label} (score={score:.2f})')
+            if processed_text != text:
+                st.info(f'✨ Đã thêm dấu tự động: "{text}" → "{processed_text}"')
             st.caption(f'Label gốc từ model: {original_label}')
+            
+            # Hiển thị JSON output
+            import json
+            json_output = {
+                "text": processed_text,
+                "sentiment": english_label,  # Tiếng Anh cho JSON
+            }
+            with st.expander("📋 Xem kết quả dạng JSON"):
+                st.code(json.dumps(json_output, ensure_ascii=False, indent=2), language='json')
 
     st.subheader('Lịch sử phân loại (gần nhất)')
     rows = fetch_history(conn, limit=50)

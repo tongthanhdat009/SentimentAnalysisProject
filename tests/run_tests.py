@@ -7,11 +7,12 @@ def load_tests(path='tests/test_cases.json'):
         return json.load(f)
 
 def get_classifier(model_name=None):
-    # Try preferred models in order: model_name, phoBERT, multilingual distilbert, default
+    # Try preferred models in order: model_name, phoBERT sentiment (fine-tuned), default
     candidates = []
     if model_name:
         candidates.append(model_name)
-    candidates += ['vinai/phobert-base-v2', 'distilbert-base-multilingual-cased']
+    # Use the same fine-tuned model as app.py for consistency
+    candidates += ['wonrax/phobert-base-vietnamese-sentiment']
     last_exc = None
     for m in candidates:
         try:

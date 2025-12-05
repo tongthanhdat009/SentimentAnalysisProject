@@ -7,6 +7,6 @@
   { "text": "Phim này hay lắm", "sentiment": "POSITIVE" },
   { "text": "Tôi buồn vì thất bại", "sentiment": "NEGATIVE" },
   { "text": "Ngày mai đi học", "sentiment": "NEUTRAL" },
-  { "text": "Cảm ơn rất nhiều", "sentiment": "POSITIVE" },
+  { "text": "Cảm ơn bạn rất nhiều", "sentiment": "POSITIVE" },
   { "text": "Mệt mỏi quá hôm nay", "sentiment": "NEGATIVE" }
 ]
