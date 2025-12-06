@@ -106,12 +106,32 @@ def add_manual_training_data(conn):
         ("Tốt lắm", "TÍCH CỰC"),
         ("Hoàn hảo", "TÍCH CỰC"),
         
-        # Trung lập
+        # Trung lập - Mở rộng để cải thiện confidence
         ("Tôi là Đạt", "TRUNG LẬP"),
         ("Hôm nay thứ hai", "TRUNG LẬP"),
         ("Cái này là gì", "TRUNG LẬP"),
         ("Được đấy", "TRUNG LẬP"),
         ("Bình thường", "TRUNG LẬP"),
+        ("Công việc ổn định", "TRUNG LẬP"),
+        ("Tình hình ổn định", "TRUNG LẬP"),
+        ("Mọi thứ bình thường", "TRUNG LẬP"),
+        ("Cuộc sống ổn", "TRUNG LẬP"),
+        ("Công việc đang làm", "TRUNG LẬP"),
+        ("Đi làm hàng ngày", "TRUNG LẬP"),
+        ("Thời tiết bình thường", "TRUNG LẬP"),
+        ("Sức khỏe ổn", "TRUNG LẬP"),
+        ("Tình trạng ổn định", "TRUNG LẬP"),
+        ("Không có gì đặc biệt", "TRUNG LẬP"),
+        ("Như mọi ngày", "TRUNG LẬP"),
+        ("Ngày mai đi học", "TRUNG LẬP"),
+        ("Hôm nay đi làm", "TRUNG LẬP"),
+        ("Công ty đang hoạt động", "TRUNG LẬP"),
+        ("Dự án đang tiến hành", "TRUNG LẬP"),
+        ("Cuộc họp hôm nay", "TRUNG LẬP"),
+        ("Báo cáo tuần này", "TRUNG LẬP"),
+        ("Email từ sếp", "TRUNG LẬP"),
+        ("Lịch làm việc", "TRUNG LẬP"),
+        ("Thông báo từ công ty", "TRUNG LẬP"),
     ]
     
     from datetime import datetime

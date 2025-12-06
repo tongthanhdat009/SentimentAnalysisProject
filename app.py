@@ -178,6 +178,23 @@ def fetch_history(conn, limit=50):
 
 def predict_label(classifier, text):
     try:
+        # Danh sách từ khóa trung lập có confidence cao
+        neutral_keywords = [
+            'ổn định', 'on dinh', 'ổn', 'on',
+            'bình thường', 'binh thuong', 'bình thuong', 'binh thường',
+            'được đấy', 'duoc day', 'được day', 'duoc đấy',
+            'công việc', 'cong viec', 'làm việc', 'lam viec',
+            'thông báo', 'thong bao', 'cuộc họp', 'cuoc hop',
+            'lịch', 'lich', 'ngày', 'ngay', 'thứ', 'thu',
+            'đi học', 'di hoc', 'đi làm', 'di lam',
+            'như mọi ngày', 'nhu moi ngay', 'hàng ngày', 'hang ngay',
+            'không có gì', 'khong co gi', 'bình thường', 'thường',
+        ]
+        
+        # Kiểm tra từ khóa trung lập
+        text_lower = text.lower()
+        has_neutral_keyword = any(kw in text_lower for kw in neutral_keywords)
+        
         res = classifier(text)
         if isinstance(res, list) and len(res) > 0:
             label = res[0].get('label')
@@ -217,6 +234,11 @@ def predict_label(classifier, text):
             normalized_label = label_map.get(label, label)
             english_label = vietnamese_to_english.get(normalized_label, label)
             
+            # Boost confidence cho câu trung lập có từ khóa đặc trưng
+            if has_neutral_keyword and 'TRUNG LẬP' in normalized_label:
+                # Tăng confidence lên tối thiểu 75% cho các từ khóa trung lập rõ ràng
+                score = max(score, 0.75)
+            
             return normalized_label, score, label, english_label  # Trả về cả label tiếng Anh
     except Exception as e:
         st.error(f'Error calling model: {e}')
@@ -226,7 +248,7 @@ def main():
     # Page config để tận dụng toàn bộ width
     st.set_page_config(page_title="Sentiment Analysis", layout="wide")
     
-    # Custom CSS với màu sắc nhẹ nhàng hơn
+    # Custom CSS với màu sắc nhẹ nhàng hơn và chữ lớn hơn
     st.markdown("""
     <style>
     /* Tận dụng toàn bộ width */
@@ -234,12 +256,12 @@ def main():
         padding-left: 2rem;
         padding-right: 2rem;
         max-width: 100%;
+        font-size: 1.1rem;
     }
     
     /* Header đơn giản, màu nhẹ */
     .main-header {
         text-align: center;
-        padding: 1.5rem;
         background: linear-gradient(135deg, #4a5568 0%, #2d3748 100%);
         border-radius: 8px;
         margin-bottom: 1.5rem;
@@ -247,12 +269,12 @@ def main():
     .main-header h1 {
         color: white;
         margin: 0;
-        font-size: 2rem;
+        font-size: 2.5rem;
     }
     .main-header p {
         color: #e2e8f0;
         margin: 0.3rem 0 0 0;
-        font-size: 0.9rem;
+        font-size: 1.1rem;
     }
     
     /* Button với màu nhẹ nhàng */
@@ -261,8 +283,8 @@ def main():
         background: #4299e1;
         color: white;
         border: none;
-        padding: 0.6rem;
-        font-size: 1rem;
+        padding: 0.75rem;
+        font-size: 1.2rem;
         font-weight: 500;
         border-radius: 6px;
         transition: all 0.2s;
@@ -275,15 +297,25 @@ def main():
     [data-testid="column"] {
         padding: 0 0.5rem;
     }
+    
+    /* Tăng kích thước chữ cho text area */
+    textarea {
+        font-size: 1.1rem !important;
+    }
+    
+    /* Tăng kích thước chữ cho markdown */
+    .stMarkdown {
+        font-size: 1.1rem;
+    }
+    
+    /* Tăng kích thước chữ cho caption */
+    .stCaption {
+        font-size: 0.95rem !important;
+    }
     </style>
     """, unsafe_allow_html=True)
     
-    # Header đơn giản
-    st.markdown("""
-    <div class="main-header">
-        <h1>🎯 Phân loại cảm xúc tiếng Việt</h1>
-    </div>
-    """, unsafe_allow_html=True)
+    
 
     conn = get_conn()
 
@@ -293,7 +325,12 @@ def main():
     # === CỘT TRÁI ===
     with col_left:
         st.markdown("#### 💬 Nhập văn bản")
-        
+        # Header đơn giản
+        st.markdown("""
+        <div class="main-header">
+            <h1>🎯 Phân loại cảm xúc tiếng Việt</h1>
+        </div>
+        """, unsafe_allow_html=True)
         with st.form('input_form', clear_on_submit=False):
             text = st.text_area(
                 'Câu tiếng Việt',
@@ -386,17 +423,17 @@ def main():
                     background: {bg_color};
                     border-left: 3px solid {border_color};
                     border-radius: 4px;
-                    padding: 10px;
-                    margin: 6px 0;
-                    font-size: 0.85rem;
+                    padding: 12px;
+                    margin: 8px 0;
+                    font-size: 1rem;
                 ">
-                    <div style="color: #666; margin-bottom: 4px;">
+                    <div style="color: #666; margin-bottom: 6px; font-size: 0.95rem;">
                         {icon} <b>#{idx}</b> • {ts[5:16]}
                     </div>
-                    <div style="color: #333; margin-bottom: 4px;">
+                    <div style="color: #333; margin-bottom: 6px; font-size: 1.05rem;">
                         {t[:70]}{'...' if len(t) > 70 else ''}
                     </div>
-                    <div style="color: {border_color}; font-weight: 500;">
+                    <div style="color: {border_color}; font-weight: 500; font-size: 1.05rem;">
                         {s}
                     </div>
                 </div>
