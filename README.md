@@ -15,6 +15,291 @@ Dự án này xây dựng một hệ thống phân loại cảm xúc (Sentiment 
 - ✅ Xuất kết quả JSON format
 - ✅ Model caching để tăng tốc độ
 
+## 🏗️ Kiến trúc hệ thống
+
+### Sơ đồ khối tổng quan
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                         HỆ THỐNG PHÂN LOẠI CẢM XÚC                  │
+└─────────────────────────────────────────────────────────────────────┘
+
+┌──────────────┐      ┌──────────────┐      ┌──────────────┐
+│   Input      │      │   Process    │      │   Output     │
+│              │      │              │      │              │
+│  - Streamlit │─────▶│ Text         │─────▶│  - Label     │
+│    Web UI    │      │   Processing │      │  - Score     │
+│  - User Text │      │ - PhoBERT    │      │  - JSON      │
+│              │      │ - Normalize  │      │  - History   │
+└──────────────┘      └──────────────┘      └──────────────┘
+                             │
+                             ▼
+                      ┌──────────────┐
+                      │   Storage    │
+                      │              │
+                      │  SQLite DB   │
+                      │  + Cache     │
+                      └──────────────┘
+```
+
+### Luồng xử lý chi tiết (Flow Chart)
+
+```mermaid
+graph TD
+    classDef default font-size:30px,stroke-width:2px;
+    
+    A([Bắt đầu]) --> B[Load Config & Cache]
+    B --> C[Load PhoBERT Model]
+    C --> D{Model đã cache?}
+    
+    %% Đã thêm style font-size:30px cho các nhãn điều kiện dưới đây
+    D -->|"<span style='font-size:30px'>Yes</span>"| E[Load từ cache 2-5s]
+    D -->|"<span style='font-size:30px'>No</span>"| F[Download model ~60s]
+    
+    F --> G[Cache model]
+    E --> H[Sẵn sàng]
+    G --> H
+    
+    H --> I[/User nhập văn bản/]
+    I --> J{Validation}
+    
+    J -->|"<span style='font-size:30px'>&lt; 5 ký tự</span>"| K[/Thông báo lỗi/]
+    J -->|"<span style='font-size:30px'>≥ 5 ký tự</span>"| L[Chuẩn hóa văn bản]
+    
+    K --> Z([Kết thúc])
+    
+    L --> M[Xử lý viết tắt]
+    M --> N[Thêm dấu tiếng Việt]
+    N --> O[PhoBERT Analysis]
+    
+    O --> P{Có từ khóa<br/>trung lập?}
+    
+    P -->|"<span style='font-size:30px'>Yes</span>"| Q[Boost confidence]
+    P -->|"<span style='font-size:30px'>No</span>"| R[Giữ nguyên score]
+    
+    Q --> S[Map label]
+    R --> S
+    
+    S --> T[(Lưu vào SQLite)]
+    T --> U[/Hiển thị kết quả/]
+    U --> V[Cập nhật lịch sử]
+    
+    V --> Z([Kết thúc])
+```
+
+### Sơ đồ luồng dữ liệu (Data Flow)
+
+```
+┌────────────────────────────────────────────────────────────────────────┐
+│                         DATA FLOW DIAGRAM                              │
+└────────────────────────────────────────────────────────────────────────┘
+
+User Input: "rat vui hom nay k biet"
+    │
+    ├─▶ [Validation] ──▶ Check length ≥ 5
+    │                    └─▶ ✓ Pass
+    │
+    ├─▶ [Text Normalization]
+    │   ├─▶ Abbreviation Map: k → không
+    │   └─▶ Accent Map: rat → rất, hom → hôm
+    │       └─▶ Output: "rất vui hôm nay không biết"
+    │
+    ├─▶ [PhoBERT Model]
+    │   ├─▶ Tokenization: "rất", "vui", "hôm", "nay"...
+    │   ├─▶ Encoding: [101, 5234, 892, ...]
+    │   ├─▶ Classification: Logits → Softmax
+    │   └─▶ Output: {label: "POSITIVE", score: 0.982}
+    │
+    ├─▶ [Confidence Boost]
+    │   └─▶ Check neutral keywords → No boost needed
+    │
+    ├─▶ [Label Mapping]
+    │   └─▶ POSITIVE → "TÍCH CỰC"
+    │
+    ├─▶ [Database Storage]
+    │   └─▶ INSERT INTO sentiments (text, sentiment, timestamp)
+    │
+    └─▶ [Display Output]
+        ├─▶ UI: Cảm xúc: TÍCH CỰC 😊 (98.2% tin cậy)
+        ├─▶ JSON: {"text": "...", "sentiment": "POSITIVE", "confidence": 0.982}
+        └─▶ History: Update list with new entry
+```
+
+### Kiến trúc 3 lớp (3-Tier Architecture)
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    PRESENTATION LAYER                           │
+│  ┌──────────────────────────────────────────────────────────┐   │
+│  │  Streamlit Web Interface                                 │   │
+│  │  - Text Input Form                                       │   │
+│  │  - Result Display                                        │   │
+│  │  - History Sidebar                                       │   │
+│  │  - JSON Viewer                                           │   │
+│  └──────────────────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────────────┘
+                            ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                    BUSINESS LOGIC LAYER                         │
+│  ┌──────────────────────────────────────────────────────────┐   │
+│  │  app.py - Main Logic                                     │   │
+│  │  ├─ add_vietnamese_accents()   # Text normalization      │   │
+│  │  ├─ predict_label()             # Sentiment analysis     │   │
+│  │  ├─ save_record()               # Database operations    │   │
+│  │  └─ fetch_history()             # Query history          │   │
+│  └──────────────────────────────────────────────────────────┘   │
+│                                                                 │
+│  ┌──────────────────────────────────────────────────────────┐   │
+│  │  Model Layer                                             │   │
+│  │  ├─ PhoBERT Transformer                                  │   │
+│  │  ├─ Tokenizer                                            │   │
+│  │  └─ Pipeline (sentiment-analysis)                        │   │
+│  └──────────────────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────────────┘
+                            ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                    DATA ACCESS LAYER                            │
+│  ┌──────────────────────────────────────────────────────────┐   │
+│  │  SQLite Database (sentiments.db)                         │   │
+│  │  Table: sentiments                                       │   │
+│  │  - id (PRIMARY KEY)                                      │   │
+│  │  - text (TEXT)                                           │   │
+│  │  - sentiment (TEXT)                                      │   │
+│  │  - timestamp (TEXT)                                      │   │
+│  └──────────────────────────────────────────────────────────┘   │
+│                                                                 │
+│  ┌──────────────────────────────────────────────────────────┐   │
+│  │  Model Cache (.model_cache/)                             │   │
+│  │  - PhoBERT weights                                       │   │
+│  │  - Tokenizer config                                      │   │
+│  │  - Model config                                          │   │
+│  └──────────────────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### Quy trình phân loại cảm xúc
+
+```
+INPUT TEXT: "Công việc ổn định"
+    │
+    ▼
+┌─────────────────────────────────────┐
+│ STEP 1: Text Preprocessing          │
+│ - Strip whitespace                  │
+│ - Lowercase for keyword matching    │
+│ - No changes: "Công việc ổn định"   │
+└─────────────────────────────────────┘
+    │
+    ▼
+┌─────────────────────────────────────┐
+│ STEP 2: PhoBERT Tokenization        │
+│ Input: "Công việc ổn định"          │
+│ Tokens: ["Công", "việc", "ổn",      │
+│          "định"]                    │
+│ IDs: [101, 3421, 5692, 8234, 102]   │
+└─────────────────────────────────────┘
+    │
+    ▼
+┌─────────────────────────────────────┐
+│ STEP 3: Model Inference             │
+│ Forward pass through BERT layers    │
+│ Output logits: [-1.2, 2.8, -0.5]    │
+│ (NEG, NEU, POS)                     │
+└─────────────────────────────────────┘
+    │
+    ▼
+┌─────────────────────────────────────┐
+│ STEP 4: Softmax & Label             │
+│ Softmax: [0.12, 0.76, 0.12]         │
+│ Argmax: Index 1 → NEUTRAL           │
+│ Score: 0.564 (56.4%)                │
+└─────────────────────────────────────┘
+    │
+    ▼
+┌─────────────────────────────────────┐
+│ STEP 5: Confidence Boost (NEW!)     │
+│ Check keywords: "ổn định" found!    │
+│ Boost: 0.564 → 0.75 (75%)           │
+└─────────────────────────────────────┘
+    │
+    ▼
+┌─────────────────────────────────────┐
+│ STEP 6: Label Mapping               │
+│ NEUTRAL → "TRUNG LẬP"               │
+│ NEUTRAL → "NEUTRAL" (JSON)          │
+└─────────────────────────────────────┘
+    │
+    ▼
+OUTPUT: 
+{
+  "label": "TRUNG LẬP",
+  "score": 0.75,
+  "english_label": "NEUTRAL"
+}
+```
+
+### Sơ đồ tương tác component
+
+```
+┌────────────────────────────────────────────────────────────────┐
+│                    COMPONENT INTERACTION                       │
+└────────────────────────────────────────────────────────────────┘
+
+    User
+     │
+     │ (1) Input text
+     ▼
+┌─────────────┐
+│  Streamlit  │
+│     UI      │
+└─────────────┘
+     │
+     │ (2) Form submit
+     ▼
+┌─────────────────────────────┐
+│  add_vietnamese_accents()   │◀─── Abbreviation Map
+│  (Text Normalization)       │◀─── Accent Map
+└─────────────────────────────┘
+     │
+     │ (3) Normalized text
+     ▼
+┌─────────────────────────────┐
+│  get_classifier()           │◀─── Model Cache
+│  @st.cache_resource         │◀─── HuggingFace Hub
+└─────────────────────────────┘
+     │
+     │ (4) Classifier pipeline
+     ▼
+┌─────────────────────────────┐
+│  predict_label()            │
+│  - Model inference          │
+│  - Confidence boost         │
+│  - Label mapping            │
+└─────────────────────────────┘
+     │
+     ├─ (5) Save to DB
+     │  ▼
+     │  ┌──────────────┐
+     │  │ save_record()│─────▶ SQLite
+     │  └──────────────┘
+     │
+     └─ (6) Return result
+        ▼
+    ┌─────────────┐
+    │  Display    │
+    │  - Label    │
+    │  - Score    │
+    │  - JSON     │
+    │  - History  │
+    └─────────────┘
+        │
+        │ (7) Fetch history
+        ▼
+    ┌─────────────┐
+    │fetch_history│◀───── SQLite
+    └─────────────┘
+```
+
 ## 🎯 Demo
 
 ![Sentiment Analysis Demo](https://via.placeholder.com/800x400?text=Sentiment+Analysis+App)
